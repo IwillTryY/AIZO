@@ -285,8 +285,8 @@ aizo/
 
 ---
 
-## Roadmap
 
+ 
 - [ ] Multi-node gossip protocol (fleet management)
 - [ ] Docker runtime backend (Linux production)
 - [ ] Container networking (veth pairs)
@@ -295,4 +295,4 @@ aizo/
 - [ ] REST API
 - [ ] Web dashboard
 
----
+
