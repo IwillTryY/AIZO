@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(go build:*)",
+      "Bash(xargs grep:*)",
+      "Bash(wc -l /c/Users/kanav/Downloads/AIZO/layer*/*.go)",
+      "Bash(ls -la /c/Users/kanav/Downloads/AIZO/examples/*.go)",
+      "Bash(ls:*)",
+      "Bash(for dir:*)",
+      "Bash(do echo:*)",
+      "Read(//c/Users/kanav/Downloads/AIZO/$dir/**)",
+      "Bash(xargs -I {} grep -c \"^//\" {})",
+      "Bash(done)",
+      "Bash(for pkg:*)",
+      "Read(//c/Users/kanav/Downloads/AIZO/$pkg/**)",
+      "Bash(find /c/Users/kanav/Downloads/AIZO/examples -name \"*.go\" -exec wc -l {} +)",
+      "Bash(find /c/Users/kanav/Downloads/AIZO -name \"*.go\" -exec grep -l \"^package\" {})",
+      "Bash(grep -r \"^//\" /c/Users/kanav/Downloads/AIZO --include=\"*.go\")"
+    ]
+  }
+}
