@@ -251,18 +251,4 @@ aizo/
 
 ---
 
-## Roadmap
 
-- [ ] Multi-node gossip protocol (fleet management)
-- [ ] Docker runtime backend (Linux production)
-- [ ] Container networking (veth pairs)
-- [ ] Image registry support
-- [ ] Prometheus metrics endpoint
-- [ ] REST API
-- [ ] Web dashboard
-
----
-
-## License
-
-MIT
