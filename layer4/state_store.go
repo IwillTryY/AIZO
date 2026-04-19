@@ -2,6 +2,8 @@ package layer4
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
@@ -11,15 +13,24 @@ import (
 type StateStore struct {
 	states  map[string]*EntityState
 	history map[string][]*StateChange
+	db      *sql.DB // Optional: if provided, persist to database
 	mu      sync.RWMutex
 }
 
 // NewStateStore creates a new state store
-func NewStateStore() *StateStore {
-	return &StateStore{
+func NewStateStore(db *sql.DB) *StateStore {
+	s := &StateStore{
 		states:  make(map[string]*EntityState),
 		history: make(map[string][]*StateChange),
+		db:      db,
 	}
+
+	// If DB provided, load existing state from database
+	if db != nil {
+		s.loadFromDB()
+	}
+
+	return s
 }
 
 // Set stores or updates an entity state
@@ -43,8 +54,17 @@ func (s *StateStore) Set(ctx context.Context, state *EntityState) error {
 
 	state.LastUpdated = time.Now()
 
-	// Store state
+	// Store state in memory
 	s.states[state.EntityID] = state
+
+	// Persist to database if available
+	if s.db != nil {
+		if err := s.persistToDB(state); err != nil {
+			// Log error but don't fail the operation
+			// In-memory state is still updated
+			fmt.Printf("Warning: failed to persist state to DB: %v\n", err)
+		}
+	}
 
 	// Record change
 	if exists {
@@ -93,6 +113,13 @@ func (s *StateStore) Delete(ctx context.Context, entityID string) error {
 	}
 
 	delete(s.states, entityID)
+
+	// Delete from database if available
+	if s.db != nil {
+		if err := s.deleteFromDB(entityID); err != nil {
+			fmt.Printf("Warning: failed to delete state from DB: %v\n", err)
+		}
+	}
 
 	// Record deletion
 	change := &StateChange{
@@ -190,6 +217,13 @@ func (s *StateStore) UpdateDesiredState(ctx context.Context, entityID string, de
 	state.LastUpdated = time.Now()
 	state.Version++
 
+	// Persist to database if available
+	if s.db != nil {
+		if err := s.persistToDB(state); err != nil {
+			fmt.Printf("Warning: failed to persist desired state to DB: %v\n", err)
+		}
+	}
+
 	return nil
 }
 
@@ -207,6 +241,13 @@ func (s *StateStore) UpdateActualState(ctx context.Context, entityID string, act
 	state.LastSeen = time.Now()
 	state.LastUpdated = time.Now()
 	state.Version++
+
+	// Persist to database if available
+	if s.db != nil {
+		if err := s.persistToDB(state); err != nil {
+			fmt.Printf("Warning: failed to persist actual state to DB: %v\n", err)
+		}
+	}
 
 	return nil
 }
@@ -264,4 +305,102 @@ func (s *StateStore) matchesQuery(state *EntityState, query *StateQuery) bool {
 	}
 
 	return true
+}
+
+// loadFromDB loads all entity states from the database into memory
+func (s *StateStore) loadFromDB() {
+	if s.db == nil {
+		return
+	}
+
+	rows, err := s.db.Query(`
+		SELECT entity_id, type, status, desired_state, actual_state, metadata, version, updated_at
+		FROM entity_state_persistent
+	`)
+	if err != nil {
+		fmt.Printf("Warning: failed to load state from DB: %v\n", err)
+		return
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var state EntityState
+		var desiredJSON, actualJSON, metadataJSON sql.NullString
+		var updatedAt time.Time
+
+		err := rows.Scan(
+			&state.EntityID,
+			&state.Type,
+			&state.Status,
+			&desiredJSON,
+			&actualJSON,
+			&metadataJSON,
+			&state.Version,
+			&updatedAt,
+		)
+		if err != nil {
+			continue
+		}
+
+		state.LastUpdated = updatedAt
+
+		// Unmarshal JSON fields
+		if desiredJSON.Valid && desiredJSON.String != "" {
+			json.Unmarshal([]byte(desiredJSON.String), &state.DesiredState)
+		}
+		if actualJSON.Valid && actualJSON.String != "" {
+			json.Unmarshal([]byte(actualJSON.String), &state.ActualState)
+		}
+		if metadataJSON.Valid && metadataJSON.String != "" {
+			json.Unmarshal([]byte(metadataJSON.String), &state.Metadata)
+		}
+
+		s.states[state.EntityID] = &state
+	}
+}
+
+// persistToDB writes an entity state to the database
+func (s *StateStore) persistToDB(state *EntityState) error {
+	if s.db == nil {
+		return nil
+	}
+
+	// Marshal JSON fields
+	desiredJSON, _ := json.Marshal(state.DesiredState)
+	actualJSON, _ := json.Marshal(state.ActualState)
+	metadataJSON, _ := json.Marshal(state.Metadata)
+
+	_, err := s.db.Exec(`
+		INSERT INTO entity_state_persistent (entity_id, type, status, desired_state, actual_state, metadata, version, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(entity_id) DO UPDATE SET
+			type = excluded.type,
+			status = excluded.status,
+			desired_state = excluded.desired_state,
+			actual_state = excluded.actual_state,
+			metadata = excluded.metadata,
+			version = excluded.version,
+			updated_at = excluded.updated_at
+	`,
+		state.EntityID,
+		state.Type,
+		state.Status,
+		string(desiredJSON),
+		string(actualJSON),
+		string(metadataJSON),
+		state.Version,
+		state.LastUpdated,
+	)
+
+	return err
+}
+
+// deleteFromDB removes an entity state from the database
+func (s *StateStore) deleteFromDB(entityID string) error {
+	if s.db == nil {
+		return nil
+	}
+
+	_, err := s.db.Exec(`DELETE FROM entity_state_persistent WHERE entity_id = ?`, entityID)
+	return err
 }

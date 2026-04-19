@@ -14,14 +14,14 @@ Something cool about this is that you could connect to 3 laptops,
 1 with Windows, 1 with Linux and 1 with MacOS and AIZO would manage
 all 3 thanks to my mess of code. 
 
-Layer 2 : It discoves and registers all current entities in your infrastructure. Say, you have 10 APIs, 5 databases and 20 servers.
+Layer 2 : It discovers and registers all current entities in your infrastructure. Say, you have 10 APIs, 5 databases and 20 servers.
 It'll find it ALL. It's also keep a catalog of them and their data.
 
-Layer 3 : Telemetry. Basically the metrics, logs and traces. It's collects it all and stores it in a SQLite database which you can query with the CLI using some bs command like aizo metrics query entity api-1 --last 1h. (Yo that sounds hella long, someone shorten that shi.)
+Layer 3 : Telemetry. Basically the metrics, logs and traces. It collects it all and stores it in a SQLite database which you can query with the CLI using some bs command like aizo metrics query entity api-1 --last 1h. (Yo that sounds hella long, someone shorten that shi.)
 
 Layer 4 : State management. Tracks the desired vs ACTUAL state of your infra. Say you want your API to be running, but it's down, it'll detect that and then pass it to layer 6 for healing.
 
-Layer 5 : Container runtime. THIS I'M SO PROUD OF (Ngl i can't sound so proud, thi was all claude bro) anyways, it uses Linux namespaces to create real isolated containers. On Windows, it uses WSL2 to do the same thing. Actually if you wanna test it on Linux and lemme know if it works, that'd be great, I'm too lazy to do this bro. Each
+Layer 5 : Container runtime. THIS I'M SO PROUD OF (Ngl i can't sound so proud, this was all claude bro) anyways, it uses Linux namespaces to create real isolated containers. On Windows, it uses WSL2 to do the same thing. Actually if you wanna test it on Linux and lemme know if it works, that'd be great, I'm too lazy to do this bro. Each
 container has it's own file system too. It's stored in ~/realityos/
 inside WSL2. THIS IS PURELY INDEPENDENT, IT'S NOT USING DOCKER, I'M SO BADASS (thank you claude)
 

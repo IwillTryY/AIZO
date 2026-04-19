@@ -2,6 +2,7 @@ package layer4
 
 import (
 	"context"
+	"database/sql"
 	"time"
 )
 
@@ -20,6 +21,7 @@ type ManagerConfig struct {
 	ReconciliationInterval   time.Duration
 	SnapshotInterval         time.Duration
 	EnableSnapshots          bool
+	DB                       *sql.DB // Optional: if provided, persist state to database
 }
 
 // NewManager creates a new Layer 4 manager
@@ -33,7 +35,7 @@ func NewManager(config *ManagerConfig) *Manager {
 		}
 	}
 
-	stateStore := NewStateStore()
+	stateStore := NewStateStore(config.DB)
 	changeDetector := NewChangeDetector()
 	reconciliationEngine := NewReconciliationEngine(stateStore, changeDetector)
 	stateHistory := NewStateHistory()

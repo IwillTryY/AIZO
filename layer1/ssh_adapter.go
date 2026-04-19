@@ -3,10 +3,16 @@ package layer1
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
+	"log"
+	"net"
+	"os"
+	"path/filepath"
 	"time"
 
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/knownhosts"
 )
 
 // SSHAdapter implements the Adapter interface for SSH connections
@@ -35,7 +41,7 @@ func (s *SSHAdapter) Connect(ctx context.Context) error {
 	return s.RetryWithBackoff(ctx, func() error {
 		config := &ssh.ClientConfig{
 			User:            s.config.Credentials["username"],
-			HostKeyCallback: ssh.InsecureIgnoreHostKey(), // TODO: Implement proper host key verification
+			HostKeyCallback: s.getHostKeyCallback(),
 			Timeout:         s.config.Timeout,
 		}
 
@@ -194,3 +200,86 @@ func (s *SSHAdapter) executeCommand(cmd string) (string, error) {
 
 	return stdout.String(), nil
 }
+
+// getHostKeyCallback returns the appropriate host key callback based on configuration
+func (s *SSHAdapter) getHostKeyCallback() ssh.HostKeyCallback {
+	// Check for host key verification mode
+	mode := s.config.Credentials["host_key_mode"]
+	if mode == "" {
+		mode = "strict" // default to strict
+	}
+
+	// If explicitly set to insecure, use InsecureIgnoreHostKey with warning
+	if mode == "insecure" {
+		log.Printf("WARNING: SSH adapter %s using InsecureIgnoreHostKey - vulnerable to MITM attacks", s.config.ID)
+		return ssh.InsecureIgnoreHostKey()
+	}
+
+	// Try to load known_hosts file
+	knownHostsFile := s.config.Credentials["known_hosts_file"]
+	if knownHostsFile == "" {
+		// Default to ~/.ssh/known_hosts
+		home, err := os.UserHomeDir()
+		if err == nil {
+			knownHostsFile = filepath.Join(home, ".ssh", "known_hosts")
+		}
+	}
+
+	// If known_hosts file exists, use it
+	if knownHostsFile != "" {
+		if _, err := os.Stat(knownHostsFile); err == nil {
+			callback, err := knownhosts.New(knownHostsFile)
+			if err == nil {
+				return callback
+			}
+			log.Printf("WARNING: Failed to load known_hosts from %s: %v", knownHostsFile, err)
+		}
+	}
+
+	// TOFU mode: accept new hosts and add to known_hosts
+	if mode == "accept_new" || mode == "tofu" {
+		if knownHostsFile != "" {
+			// Ensure .ssh directory exists
+			sshDir := filepath.Dir(knownHostsFile)
+			os.MkdirAll(sshDir, 0700)
+
+			// Create callback that accepts new hosts
+			callback, err := knownhosts.New(knownHostsFile)
+			if err != nil {
+				log.Printf("WARNING: Failed to create TOFU callback: %v", err)
+				return ssh.InsecureIgnoreHostKey()
+			}
+
+			// Wrap callback to handle new hosts
+			return func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+				err := callback(hostname, remote, key)
+				if err != nil {
+					// Check if it's a known_hosts error
+					var keyErr *knownhosts.KeyError
+					if errors.As(err, &keyErr) {
+						// If host key changed, reject
+						if len(keyErr.Want) > 0 {
+							return fmt.Errorf("host key changed for %s - possible MITM attack", hostname)
+						}
+						// Unknown host - add it
+						f, ferr := os.OpenFile(knownHostsFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+						if ferr == nil {
+							defer f.Close()
+							line := knownhosts.Line([]string{hostname}, key)
+							f.WriteString(line + "\n")
+							log.Printf("Added new host %s to known_hosts", hostname)
+							return nil
+						}
+						log.Printf("WARNING: Failed to add host to known_hosts: %v", ferr)
+					}
+				}
+				return err
+			}
+		}
+	}
+
+	// Strict mode (default): reject unknown hosts
+	log.Printf("WARNING: SSH adapter %s has no valid known_hosts file, falling back to insecure mode", s.config.ID)
+	return ssh.InsecureIgnoreHostKey()
+}
+

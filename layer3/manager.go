@@ -2,6 +2,7 @@ package layer3
 
 import (
 	"context"
+	"database/sql"
 	"time"
 )
 
@@ -20,6 +21,7 @@ type ManagerConfig struct {
 	LogsBufferSize    int
 	TracesBufferSize  int
 	EventsBufferSize  int
+	DB                *sql.DB // Optional: if provided, use SQLite storage instead of in-memory
 }
 
 // NewManager creates a new Layer 3 manager
@@ -33,11 +35,25 @@ func NewManager(config *ManagerConfig) *Manager {
 		}
 	}
 
-	// Create storage backends
-	metricsStorage := NewInMemoryMetricsStorage()
-	logsStorage := NewInMemoryLogStorage()
-	tracesStorage := NewInMemoryTraceStorage()
-	eventsStorage := NewInMemoryEventStorage()
+	// Create storage backends - use SQLite if DB provided, otherwise in-memory
+	var metricsStorage MetricsStorage
+	var logsStorage LogStorage
+	var tracesStorage TraceStorage
+	var eventsStorage EventStorage
+
+	if config.DB != nil {
+		// Use SQLite storage
+		metricsStorage = NewSQLiteMetricsStorage(config.DB)
+		logsStorage = NewSQLiteLogStorage(config.DB)
+		tracesStorage = NewSQLiteTraceStorage(config.DB)
+		eventsStorage = NewSQLiteEventStorage(config.DB)
+	} else {
+		// Use in-memory storage
+		metricsStorage = NewInMemoryMetricsStorage()
+		logsStorage = NewInMemoryLogStorage()
+		tracesStorage = NewInMemoryTraceStorage()
+		eventsStorage = NewInMemoryEventStorage()
+	}
 
 	// Create collectors
 	metricsCollector := NewMetricsCollector(metricsStorage, config.MetricsBufferSize)
