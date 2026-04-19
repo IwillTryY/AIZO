@@ -1,5 +1,39 @@
 # AIZO
 
+
+Human Version :
+
+What's up chat
+
+Ok so basically, AIZO is a control plane for managing ALOT of infrastructure stuff. Servers, APIs, databases, IoT devices, you know the deal. It has 7 layers, which do the following :
+
+Layer 1 : Adapters for ALOT OF STUFF (if you want to contribute to
+this codebase, start off by making an adapter, I'd say. Currently 
+as of April 18 2026, we have HTTP, SSH, gRPC and MQTT adapters.)
+Something cool about this is that you could connect to 3 laptops, 
+1 with Windows, 1 with Linux and 1 with MacOS and AIZO would manage
+all 3 thanks to my mess of code. 
+
+Layer 2 : It discoves and registers all current entities in your infrastructure. Say, you have 10 APIs, 5 databases and 20 servers.
+It'll find it ALL. It's also keep a catalog of them and their data.
+
+Layer 3 : Telemetry. Basically the metrics, logs and traces. It's collects it all and stores it in a SQLite database which you can query with the CLI using some bs command like aizo metrics query entity api-1 --last 1h. (Yo that sounds hella long, someone shorten that shi.)
+
+Layer 4 : State management. Tracks the desired vs ACTUAL state of your infra. Say you want your API to be running, but it's down, it'll detect that and then pass it to layer 6 for healing.
+
+Layer 5 : Container runtime. THIS I'M SO PROUD OF (Ngl i can't sound so proud, thi was all claude bro) anyways, it uses Linux namespaces to create real isolated containers. On Windows, it uses WSL2 to do the same thing. Actually if you wanna test it on Linux and lemme know if it works, that'd be great, I'm too lazy to do this bro. Each
+container has it's own file system too. It's stored in ~/realityos/
+inside WSL2. THIS IS PURELY INDEPENDENT, IT'S NOT USING DOCKER, I'M SO BADASS (thank you claude)
+
+Layer 6 : Intelli-heal. This is the self-learning rule engine. It detects issues and proposes fixes. The rules auto-tune their thresholds based on historical success rates. New rules are suggested by mining incident patterns. So say you have a rule that restarts your API when the error rate is above 50%, but it keeps failing because of that, it'll learn from that and maybe change the threshold to 70% or something. It's pretty dope.
+
+Layer 7 : CLI and TUI. The... CLI and TUI bro what else do you want me to say? "OhHhH, ThIs ClI iS rEvOlUtIoNaRy" no it f'ing isn't it's a CLI AND A TUI.
+
+Boom, that's the whole thing. I coded this bs over a weekend simply because I got bored and AWS costs WAY too much to be an option nowadays. ($20 bucks says this thing becomes mainstream before I find a gf.) This is primarily (I'm hoping) a team project with you folks. I'm actually really interested to see how this would turn out. 
+
+
+Scroll down for the Technically-summed AI version.
+
 A universal infrastructure control plane. Connect to anything, observe everything, heal automatically.
 
 AIZO manages heterogeneous infrastructure — servers, containers, APIs, databases, IoT devices — through a unified seven-layer architecture. It detects failures, proposes fixes, learns from outcomes, and gets smarter over time. No cloud account required. No vendor lock-in.
@@ -262,7 +296,3 @@ aizo/
 - [ ] Web dashboard
 
 ---
-
-## License
-
-MIT
